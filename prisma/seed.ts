@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
 
+// not working seed script check tmrw
 async function seed() {
 	await Promise.all(getJokes().map((joke) => db.joke.create({ data: joke })));
 }
