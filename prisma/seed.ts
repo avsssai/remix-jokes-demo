@@ -4,7 +4,20 @@ const db = new PrismaClient();
 
 // not working seed script check tmrw
 async function seed() {
-	await Promise.all(getJokes().map((joke) => db.joke.create({ data: joke })));
+	const shiva = await db.user.create({
+		data: {
+			username: "shiva",
+			passwordHash:
+				"$2b$10$K7L1OJ45/4Y2nIvhRVpCe.FSmhDdWoXehVzJptJ/op0lSsvqNu/1u",
+		},
+	});
+
+	await Promise.all(
+		getJokes().map((joke) => {
+			const data = { jokesterId: shiva.id, ...joke };
+			return db.joke.create({ data });
+		})
+	);
 }
 
 seed();
