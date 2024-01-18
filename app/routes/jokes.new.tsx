@@ -2,6 +2,7 @@ import { ActionFunctionArgs, json, redirect } from "@remix-run/node";
 import { useActionData } from "@remix-run/react";
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
+import { getUserId, requireUserId } from "~/utils/session.server";
 
 function validateJokeContent(content: string) {
 	if (content.length < 3) {
@@ -27,7 +28,7 @@ interface Errors {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
 	const formData = await request.formData();
-
+	const userId = await requireUserId(request);
 	const name = formData.get("name");
 	const content = formData.get("content");
 	if (typeof name !== "string" || typeof content !== "string") {
@@ -46,7 +47,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 	if (Object.values(fieldErrors).some(Boolean)) {
 		return badRequest<Errors>({ fieldErrors, fields, formError: null });
 	}
-	const joke = await db.joke.create({ data: { name, content } });
+	const joke = await db.joke.create({
+		data: { ...fields, jokesterId: userId },
+	});
 	return redirect(`/jokes/${joke.id}`);
 };
 

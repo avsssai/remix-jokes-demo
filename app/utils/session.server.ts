@@ -29,3 +29,29 @@ export const createUserSession = async (userId: string, redirectTo: string) => {
 		},
 	});
 };
+
+export const getUserSession = async (request: Request) => {
+	return getSession(request.headers.get("Cookie"));
+};
+
+export const getUserId = async (request: Request): Promise<string | null> => {
+	const session = await getUserSession(request);
+	const userId = session.get("userId");
+	if (!userId || typeof userId !== "string") {
+		return null;
+	}
+	return userId;
+};
+
+export const requireUserId = async (
+	request: Request,
+	redirectTo: string = new URL(request.url).pathname
+) => {
+	const session = await getUserSession(request);
+	const userId = session.get("userId");
+	if (!userId || typeof userId !== "string") {
+		const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
+		throw redirect(`/login?${searchParams}`);
+	}
+	return userId;
+};
