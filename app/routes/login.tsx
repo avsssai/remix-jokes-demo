@@ -1,17 +1,26 @@
-import type { ActionFunctionArgs, LinksFunction } from "@remix-run/node";
+import type {
+	ActionFunctionArgs,
+	LinksFunction,
+	LoaderFunctionArgs,
+} from "@remix-run/node";
 import {
 	Link,
+	json,
 	redirect,
 	useActionData,
 	useSearchParams,
 } from "@remix-run/react";
 
 import stylesUrl from "~/styles/login.css";
+import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
+import { createUserSession, login } from "~/utils/session.server";
+import { commitSession, getSession } from "~/utils/sessions";
 
 interface Fields {
 	username?: string;
 	password?: string;
+	loginType?: string;
 }
 
 interface Errors {
@@ -36,12 +45,41 @@ const validatePassword = (content: string) => {
 	}
 };
 
+function validateUrl(url: string) {
+	const urls = ["/jokes", "/"];
+	if (urls.includes(url)) {
+		return url;
+	}
+	return "/jokes";
+}
+
+// export const loader = async ({ request }: LoaderFunctionArgs) => {
+// 	const session = await getSession(request.headers.get("Cookie"));
+// 	if (session.has("id")) {
+// 		return redirect("/jokes");
+// 	}
+// 	const data = { error: session.get("error") };
+// 	return json(data, {
+// 		headers: {
+// 			"Set-Cookie": await commitSession(session),
+// 		},
+// 	});
+// };
+
 export const action = async ({ request }: ActionFunctionArgs) => {
 	const formData = await request.formData();
 	const username = formData.get("username");
 	const password = formData.get("password");
+	const loginType = formData.get("loginType");
+
+	const redirectTo =
+		validateUrl(formData.get("redirectTo") as string) || "/jokes";
 	// rule out the case where the formData is not of type string
-	if (typeof username !== "string" || typeof password !== "string") {
+	if (
+		typeof username !== "string" ||
+		typeof password !== "string" ||
+		typeof loginType !== "string"
+	) {
 		return badRequest<Errors>({
 			fieldErrors: null,
 			fields: null,
@@ -61,14 +99,55 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 		return badRequest<Errors>({ fieldErrors, fields, formError: null });
 	}
 
+	switch (loginType) {
+		case "login": {
+			// if there is no user, return error and fields
+			const user = await login({ username, password });
+			console.log({ user });
+			if (!user) {
+				return badRequest<Errors>({
+					fieldErrors: null,
+					fields: { username, password: "" },
+					formError: "Incorrect Username or Password.",
+				});
+			}
+			// if there is a user, create session and redirect to /jokes
+			return createUserSession(user.id, "/jokes");
+		}
+		case "register": {
+			const userExists = await db.user.findFirst({ where: { username } });
+			if (userExists) {
+				return badRequest<Errors>({
+					fieldErrors: null,
+					fields,
+					formError: `User with username ${username} already exists.`,
+				});
+			}
+
+			// create the user
+			// create the session and redirect to /jokes
+			return badRequest({
+				fieldErrors: null,
+				fields,
+				formError: "Not implemented",
+			});
+		}
+		default: {
+			return badRequest({
+				fieldErrors: null,
+				fields,
+				formError: "Login type invalid.",
+			});
+		}
+	}
+
+	// set header and redirect to home page (/jokes)
 	return redirect("/jokes");
 };
 
 export default function Login() {
 	const [searchParams] = useSearchParams();
-	const data = useActionData();
-
-	console.log(data, "data");
+	const data = useActionData<typeof action>();
 	return (
 		<div className='container'>
 			<div className='content' data-light=''>
@@ -86,7 +165,10 @@ export default function Login() {
 								type='radio'
 								name='loginType'
 								value='login'
-								defaultChecked
+								defaultChecked={
+									!data?.fields?.loginType ||
+									data.fields.loginType === "login"
+								}
 							/>{" "}
 							Login
 						</label>
@@ -95,6 +177,9 @@ export default function Login() {
 								type='radio'
 								name='loginType'
 								value='register'
+								defaultChecked={
+									data?.fields?.loginType === "register"
+								}
 							/>{" "}
 							Register
 						</label>
@@ -105,7 +190,25 @@ export default function Login() {
 							type='text'
 							id='username-input'
 							name='username'
+							autoComplete='off'
+							defaultValue={data?.fields?.username ?? ""}
+							aria-errormessage={
+								data?.fieldErrors?.username
+									? "username error"
+									: undefined
+							}
+							aria-invalid={Boolean(data?.fieldErrors?.username)}
 						/>
+						{data?.fieldErrors?.username ? (
+							<p
+								className='form-validation-error'
+								id='username-error'
+								role='alert'>
+								{data.fieldErrors.username}
+							</p>
+						) : (
+							""
+						)}
 					</div>
 					<div>
 						<label htmlFor='password-input'>Password</label>
@@ -113,7 +216,25 @@ export default function Login() {
 							id='password-input'
 							name='password'
 							type='password'
+							defaultValue={data?.fields?.password ?? ""}
+							autoComplete='off'
+							aria-errormessage={
+								data?.fieldErrors?.password
+									? "password-error"
+									: undefined
+							}
+							aria-invalid={Boolean(data?.fieldErrors?.password)}
 						/>
+						{data?.fieldErrors?.password ? (
+							<p
+								className='form-validation-error'
+								id='password-error'
+								role='alert'>
+								{data.fieldErrors.password}
+							</p>
+						) : (
+							""
+						)}
 					</div>
 					<button type='submit' className='button'>
 						Submit
