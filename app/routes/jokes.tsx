@@ -1,20 +1,22 @@
 import { Link, Outlet, useLoaderData } from "@remix-run/react";
-import { LinksFunction, json } from "@remix-run/node";
+import { LinksFunction, LoaderFunctionArgs, json } from "@remix-run/node";
 import stylesUrl from "../styles/jokes.css";
 import { db } from "~/utils/db.server";
+import { getUser } from "~/utils/session.server";
 
 export const links: LinksFunction = () => [
 	{ href: stylesUrl, rel: "stylesheet" },
 ];
 
-export const loader = async () => {
+export const loader = async ({request}:LoaderFunctionArgs) => {
 	try {
 		const jokes = await db.joke.findMany({
 			orderBy: { createdAt: "desc" },
 			select: { name: true, id: true },
 			take: 5,
 		});
-		return json({ jokeListItems: jokes });
+		const user = await getUser(request)
+		return json({ jokeListItems: jokes, user });
 	} catch (error) {
 		throw new Response("Not found", { status: 404 });
 	}
@@ -35,6 +37,16 @@ export default function Jokes() {
 							<span className='logo-medium'>J🤪KES</span>
 						</Link>
 					</h1>
+					{data.user ?
+						(
+							<div className="user-info">
+								<span>{`Hi ${data.user.username}`}</span>
+								<form method="post" action="/logout">
+									<button className="button" type="submit">Logout</button>
+								</form>
+							</div>
+						)
+					: <Link to={'/login'}>Login</Link>}
 				</div>
 			</header>
 			<main className='jokes-main'>

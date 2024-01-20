@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { db } from "./db.server";
-import { commitSession, getSession } from "./sessions";
+import { commitSession, destroySession, getSession } from "./sessions";
 import { ActionFunctionArgs, redirect } from "@remix-run/node";
 
 type LoginForm = {
@@ -55,3 +55,45 @@ export const requireUserId = async (
 	}
 	return userId;
 };
+
+export const getUser = async (request: Request) => {
+	const session = await getUserSession(request)
+	const userId = session.get("userId")
+	if(!userId || typeof userId !== "string") {
+		return null
+	}
+
+	// retrieve the user id from the db
+	const user = await db.user.findUnique({
+		select: {
+			id:true, username:true
+		},
+		where: {
+			id: userId
+		}
+	})
+	// log out if there is no user
+	if(!user) {
+		throw await logout(request)
+	}
+	return user
+}
+
+export const logout =async (request:Request) => {
+	const session = await getUserSession(request)
+	return redirect("/login", {
+		headers: {
+			"Set-Cookie": await destroySession(session)
+		}
+	})
+}
+
+export const register = async ({username, password}: LoginForm) => {
+	const passwordHash = await bcrypt.hash(password, 10)
+	const user = await db.user.create({
+		data: {
+			username, passwordHash
+		}
+	})
+	return {userId: user.id, username}
+}

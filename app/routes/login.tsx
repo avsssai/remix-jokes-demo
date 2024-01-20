@@ -14,7 +14,7 @@ import {
 import stylesUrl from "~/styles/login.css";
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
-import { createUserSession, login } from "~/utils/session.server";
+import { createUserSession, login, register } from "~/utils/session.server";
 import { commitSession, getSession } from "~/utils/sessions";
 
 interface Fields {
@@ -93,7 +93,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 		password: validatePassword(password),
 	};
 
-	const fields: Fields = { username, password };
+	const fields: Fields = { username, password, loginType };
 
 	if (Object.values(fieldErrors).some(Boolean)) {
 		return badRequest<Errors>({ fieldErrors, fields, formError: null });
@@ -112,7 +112,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 				});
 			}
 			// if there is a user, create session and redirect to /jokes
-			return createUserSession(user.id, "/jokes");
+			return createUserSession(user.id, redirectTo);
 		}
 		case "register": {
 			const userExists = await db.user.findFirst({ where: { username } });
@@ -125,12 +125,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 			}
 
 			// create the user
+			const user = await register({username, password})
 			// create the session and redirect to /jokes
-			return badRequest({
-				fieldErrors: null,
-				fields,
-				formError: "Not implemented",
-			});
+			if(!user) {
+
+				return badRequest({
+					fieldErrors: null,
+					fields,
+					formError: "Something went wrong while creating a user.",
+				});
+			}
+			return createUserSession(user.userId,"/jokes")
 		}
 		default: {
 			return badRequest({
@@ -147,11 +152,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function Login() {
 	const [searchParams] = useSearchParams();
+	console.log(searchParams.get("redirectTo"))
 	const data = useActionData<typeof action>();
 	return (
 		<div className='container'>
 			<div className='content' data-light=''>
 				<h1>Login</h1>
+				<p className="error">{data?.formError}</p>
 				<form method='post'>
 					<input
 						type='hidden'
