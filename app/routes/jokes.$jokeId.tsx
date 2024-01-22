@@ -1,4 +1,4 @@
-import { LoaderFunctionArgs, json } from "@remix-run/node";
+import { LoaderFunctionArgs, MetaFunction, json } from "@remix-run/node";
 import {
     Link,
     isRouteErrorResponse,
@@ -9,6 +9,23 @@ import {
 import { db } from "~/utils/db.server";
 import invariant from "tiny-invariant";
 import { getUser } from "~/utils/session.server";
+
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+    const { description, title } = data
+        ? {
+              description: `Enjoy the "${data.singleJoke.name}" joke and much more.`,
+              title: `"${data.singleJoke.name} joke"`,
+          }
+        : {
+              description: "No joke found",
+              title: "No joke.",
+          };
+    return [
+        { name: "description", content: description },
+        { name: "twitter:description", content: description },
+        { name: "title", content: title },
+    ];
+};
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     const { jokeId } = params;
