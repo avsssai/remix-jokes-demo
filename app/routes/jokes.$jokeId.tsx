@@ -1,5 +1,6 @@
 import { LoaderFunctionArgs, MetaFunction, json } from "@remix-run/node";
 import {
+    Form,
     Link,
     isRouteErrorResponse,
     useLoaderData,
@@ -50,7 +51,7 @@ export default function SingleJoke() {
             <p>{singleJoke?.content}</p>
             <Link to={`.`}>{singleJoke?.name} Permalink</Link>
             {user?.id === singleJoke.jokesterId ? (
-                <form action={`/jokes/${singleJoke.id}/destroy`} method="post">
+                <Form action={`/jokes/${singleJoke.id}/destroy`} method="post">
                     <button
                         name="intent"
                         value="delete"
@@ -59,7 +60,7 @@ export default function SingleJoke() {
                     >
                         Delete
                     </button>
-                </form>
+                </Form>
             ) : (
                 ""
             )}
